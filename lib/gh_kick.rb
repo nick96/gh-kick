@@ -1,23 +1,37 @@
 require "readline"
 require "open3"
+require "tmpdir"
 
 module GhKick
-  def self.kick(pr, main: get_default_branch, remote: "origin", confirm: true)
-    Dir.mktmpdir do |d|
-      git("worktree", "add", "--force", main, d, exception: true)
-      Dir.chdir(d) do
-        system("gh", "pr", "checkout", pr, exception: true)
-        git("fetch", origin, main, exception: true)
-        git("rebase", "#{origin}/#{main}", exception: true)
-        if confirm
-          if Readline
-               .readline("Force push (with lease) back to remote? [yN] ")
-               .strip
-               .downcase == "y"
-            git("push", "--force-with-lease", origin)
+  def self.kick(
+    pr,
+    main: get_default_branch,
+    origin: "origin",
+    confirm: true,
+    dry_run: false
+  )
+    begin
+      tmpdir = nil
+      Dir.mktmpdir do |d|
+        tmpdir = d
+        self.git("worktree", "add", "--force", d, main, dry_run: dry_run)
+
+        Dir.chdir(d) do
+          self.gh("pr", "checkout", pr, dry_run: dry_run)
+          self.git("fetch", origin, main, dry_run: dry_run)
+          self.git("rebase", "#{origin}/#{main}", dry_run: dry_run)
+          if confirm
+            if Readline
+                 .readline("Force push (with lease) back to remote? [yN] ")
+                 .strip
+                 .downcase == "y"
+              self.git("push", "--force-with-lease", origin, dry_run: dry_run)
+            end
           end
         end
       end
+    ensure
+      self.git("worktree", "remove", tmpdir, exception: false, dry_run: dry_run)
     end
   end
 
@@ -29,16 +43,26 @@ module GhKick
     git("rev-parse", "--abbrev-ref", "HEAD", capture: true)
   end
 
-  def self.git(*args, exception: true, capture: false)
-    STDERR.puts "$ git #{arg.join(" ")}"
+  def self.git(*args, **kwargs)
+    self.run("git", *args, **kwargs)
+  end
+
+  def self.gh(*args, **kwargs)
+    self.run("gh", *args, **kwargs)
+  end
+
+  def self.run(*args, exception: true, capture: false, dry_run: false)
+    STDERR.puts "$ #{args.join(" ")}"
+
     if capture
-      stdout, status = Open3.capture2("git", *args)
+      return SecureRandom.hex if dry_run
+      stdout, status = Open3.capture2(*args)
       if exception
-        raise "Error running git command: #{status}" unless status.success?
+        raise "Error running command: #{status}" unless status.success?
       end
       stdout.chomp
     else
-      system("git", *args, exception: exception)
+      system(*args, exception: exception)
     end
   end
 end
