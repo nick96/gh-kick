@@ -1,32 +1,40 @@
 #!/usr/bin/env ruby
 # -*- mode: ruby -*-
 
-require 'optparse'
+require "optparse"
 
-require 'gh_kick'
+require "gh_kick"
 
 USAGE = "Usage: gh-kick [options] <PR>"
 
 opts = {}
 
-OptionParser.new do |o|
+OptionParser
+  .new do |o|
     o.banner = USAGE
 
     o.on("-v", "--verbose", "Run verbosely") { |v| opts[:verbose] = v }
-    o.on("--no-confirm", "Don't confirm before force pushing to remote branch") do |v|
-        opts[:confirm] = !v
-    end
-    o.on("--main", "Main branch (e.g. master, main) to kickstart against") do |v|
-        opts[:main] = v
-    end
-    o.on("--origin", "Remote name") { |v| opts[:origin] = v}
-end.parse!
+    o.on(
+      "--no-confirm",
+      "Don't confirm before force pushing to remote branch"
+    ) { |v| opts[:confirm] = !v }
+    o.on(
+      "--main",
+      "Main branch (e.g. master, main) to kickstart against"
+    ) { |v| opts[:main] = v }
+    o.on("--origin", "Remote name") { |v| opts[:origin] = v }
+    o.on(
+      "--dry-run",
+      "Do a dry run - just print out the commands that would be run"
+    ) { |v| opts[:dry_run] = v }
+  end
+  .parse!
 
 pr = ARGV[0]
 if pr.nil?
-    STDERR.puts "Must provide a PR as a positional argument"
-    STDERR.puts USAGE
-    exit 1
+  STDERR.puts "Must provide a PR as a positional argument"
+  STDERR.puts USAGE
+  exit 1
 end
 
 GhKick.kick(pr, **opts)
